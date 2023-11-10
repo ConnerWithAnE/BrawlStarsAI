@@ -1,0 +1,29 @@
+
+ScreenShots:
+- Screenshot of game is taken
+- Screenshot is generalized
+- Values are extracted, saved for Input
+- screenshot is given to AI
+
+
+Reinforcement:
+- Positive reinforcement for higher health
+- Positive reinforcement for higher power cubes
+- Positive reinforcement for less remaining brawlers (or teams)
+- Negative reinforcement when health drops
+- potentially Negative reinforcement over time if less teams and less cubes
+
+Inputs:
+- Health 
+- Power cubes
+- Teams(players) remaining
+- Image of Screenshot
+
+Outputs:
+- wasd
+- e (to shoot)
+- f (to super)
+- q (to gadget) {future development}
+- shift (to emote) {future development} [End of match only, for fun lol]
+
+- Future use joystick

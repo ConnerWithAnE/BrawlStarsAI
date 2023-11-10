@@ -1,5 +1,8 @@
 torch >= 2.0
 opencv-python
+pyautogui
+vgamepad
 numpy
+mss
 tqdm
 timm
