@@ -26,4 +26,4 @@ Outputs:
 - q (to gadget) {future development}
 - shift (to emote) {future development} [End of match only, for fun lol]
 
-- Future use joystick
+- Future use joystickwwww
