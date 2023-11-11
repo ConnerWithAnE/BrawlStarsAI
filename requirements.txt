@@ -1,8 +1,8 @@
 torch >= 2.0
 opencv-python
 pyautogui
-adb-shell
-adb-shell[async]
+ahk
+"ahk[binary]"
 vgamepad
 numpy
 mss
