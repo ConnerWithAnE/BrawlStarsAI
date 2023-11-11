@@ -8,45 +8,51 @@ import pytesseract
 
 class ImageController():
 
+    pytesseract.pytesseract.tesseract_cmd=r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
     def __init__(self):
         self.sct = mss.mss()
-        self.tesseact = pytesseract.pytesseract.tesseract_cmd=r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+        self.lum_arr = []
+        self.avg = 0 
 
     def teamsRemaining(self, teams_arr):
-        teams = self.tesseact.image_to_string(teams_arr[0])
+        teams = pytesseract.image_to_string(teams_arr)
         if len(teams) > 1:
             teams_remaining = teams.rstrip()[-2:].strip(' ').strip(':')
             if teams_remaining.isdigit() and int(teams_remaining) <= 10:
-                return teams
+                return teams_remaining
+        return None
             
-    def isAlive(self, avg, lum_arr):
-        new_avg = sum(lum_arr) / len(lum_arr)
-        if new_avg+15 < avg:
-            lum_arr.clear()
-            return False, new_avg
+    def isAlive(self, alive):
+        self.lum_arr.append(alive)
+        new_avg = sum(self.lum_arr) / len(self.lum_arr)
+        if new_avg+15 < self.avg:
+            if len(self.lum_arr) >= 50:
+                self.lum_arr.clear()
+            self.avg = new_avg
+            return False
         else:
-            lum_arr.clear()
-            return True, new_avg
+            if len(self.lum_arr) >= 50:
+                self.lum_arr.clear()
+            self.avg = new_avg
+            return True
 
 
 
-    def getScreenAsArray(self, sct, num):
+    def getScreenAsArray(self):
         '''must pass in mss.mss() as sct'''
     
         monitor_number = 3
-        mon = sct.monitors[monitor_number]
+        mon = self.sct.monitors[monitor_number]
         monitor = {
             "top": mon["top"] + 35,
             "left": mon["left"],
-            "width": sLength,
-            "height": sHeight,
+            "width": 918,
+            "height": 516,
             "mon": monitor_number,
-            "num": num
         }
 
-        output = "sct-mon{mon}_{top}x{left}_{width}x{height}-{num}.png".format(**monitor)
-
-        screenshot_img = sct.grab(monitor)
+        screenshot_img = self.sct.grab(monitor)
         gray_img = cv2.cvtColor(np.array(screenshot_img), cv2.COLOR_BGR2GRAY)
 
         # Convert the colour array to HSV, get the mean value of the luminance
@@ -63,7 +69,7 @@ class ImageController():
         #print(output)
         cv2.waitKey(1)
 
-        return self.teamsRemaining(teams_left), screenshot_img, self.isAlive(alive)
+        return self.teamsRemaining(teams_left), gray_img, self.isAlive(alive)
 
     
 

@@ -67,6 +67,8 @@ def getScreenAsArray(sct, num):
     screenshot_img = sct.grab(monitor)
     gray_img = cv2.cvtColor(np.array(screenshot_img), cv2.COLOR_BGR2GRAY)
 
+    print(gray_img.shape)
+
     # Convert the colour array to HSV, get the mean value of the luminance
     alive = int(cv2.cvtColor(np.array(screenshot_img), cv2.COLOR_BGR2HSV)[...,2].mean())
     
@@ -81,14 +83,14 @@ def getScreenAsArray(sct, num):
     #print(output)
     cv2.waitKey(1)
 
-    return teamsRemaining(teams_left), screenshot_img, isAlive(alive)
+    return teamsRemaining(teams_left), gray_img, alive
 
 def teamsRemaining(teams_arr):
-    teams = pytesseract.image_to_string(teams_arr[0])
+    teams = pytesseract.image_to_string(teams_arr)
     if len(teams) > 1:
         teams_remaining = teams.rstrip()[-2:].strip(' ').strip(':')
         if teams_remaining.isdigit() and int(teams_remaining) <= 10:
-            return teams
+            return teams_remaining
         
 def isAlive(avg, lum_arr):
     new_avg = sum(lum_arr) / len(lum_arr)
@@ -116,7 +118,7 @@ while 1:
     #print(avg)
     #print(f"fps: {1/(time.time() - last_time)}")
     if num % 10 == 0:
-        print(teams_remaining(state))
+        print(state)
     if num % 50 == 0:
         yalive, avg = isAlive(avg, alive_c)
         print(yalive)

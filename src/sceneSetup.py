@@ -42,7 +42,8 @@ def setStartClicks(config, ahk_obj, brawler, steps_num):
             print(pos)
         sleep(0.1)
     print(start_clicks)
-    config[f"start_match_{brawler}"] = start_clicks
+    #config[f"start_match_{brawler}"] = start_clicks
+    config[f"restart_match"] = start_clicks
     
 def setExitClicks(config, ahk_obj, mode, steps_num):
     steps = steps_num
@@ -64,7 +65,7 @@ if __name__ == '__main__':
     #while option != 0:
     config = openConfig()
     brawler = input("Please enter brawler name (lowercase): ")
-    setStartClicks(config, ahk, brawler, 2)
+    #setStartClicks(config, ahk, brawler, 2)
     setExitClicks(config, ahk, "showdown", 1)
     writeConfig(config)
     print(config)
