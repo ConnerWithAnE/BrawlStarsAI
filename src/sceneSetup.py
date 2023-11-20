@@ -58,14 +58,23 @@ def setExitClicks(config, ahk_obj, mode, steps_num):
             print(pos)
         sleep(0.1)
     print(exit_clicks)
-    config[f"exit_match_{mode}"] = exit_clicks
+    config[f"exit_match_win_{mode}"] = exit_clicks
 
 if __name__ == '__main__':
+    
     #option = None
     #while option != 0:
     config = openConfig()
-    brawler = input("Please enter brawler name (lowercase): ")
+    #brawler = input("Please enter brawler name (lowercase): ")
     #setStartClicks(config, ahk, brawler, 2)
     setExitClicks(config, ahk, "showdown", 1)
     writeConfig(config)
     print(config)
+'''
+while 1:
+    with mouse.Listener(on_click=on_click) as listener:
+                listener.join()
+                pos = ahk.get_mouse_position(coord_mode='Window')
+                #start_clicks[step] = {"x": pos[0], "y": pos[1]}
+                print(pos)
+'''

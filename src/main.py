@@ -5,82 +5,175 @@ import cv2
 import torch.optim as optim
 from torchvision import transforms
 import numpy as np
+import time
 import datetime
 import sys
-
+from collections import deque
+import random
 
 import controller
 import environment
 import imageController
 import net
 
+class Agent:
 
-
-def train():
-
-    im_controller = imageController.ImageController()
-    control = controller.Controller()
-
-    ahk = control.getAHK()
-    win = control.getWIN()
-    env = environment.Environment(im_controller)
-
-    cnn_model = net.SimpleCNN(1, 516,918,6)
-    num_epochs = 10
-    gamma = 0.99
-    epsilon = 0.1
-    threshold = 0.5
-
-    optimizer = optim.Adam(cnn_model.parameters(), lr=0.001)
-    loss_fn = torch.nn.BCELoss() 
-
-    for epoch in range(num_epochs):
-        state = env.reset(control)
-
-        while True:
-            print(state)
-            state_tensor = torch.tensor(state, dtype=torch.float32)
-            print(state_tensor.shape)
-            state_tensor = state_tensor.unsqueeze(0)#.unsqueeze(0)#.permute(0, 3, 1, 2)
-            #state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2)
-            q_values = cnn_model(state_tensor)
-            
-            binary_actions = (q_values > threshold).float().tolist()
-
-            print(f"Actions {binary_actions}")
-
-            next_state, reward, alive = env.step(binary_actions, ahk)
-            next_state_tensor = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0)#.permute(0, 3, 1, 2)
-            with torch.no_grad():
-                
-                next_q_values = cnn_model(next_state_tensor)
-                next_q_values.shape
-                td_target = reward + gamma * next_q_values.max(dim=1)[0] * (1.0)
-
-            current_q_value = q_values.gather(1, torch.arange(q_values.size(1)).unsqueeze(0))
-
-            td_target_expanded = td_target.unsqueeze(1).expand_as(next_q_values)
-
-            print(current_q_value.shape)
-            print(td_target.shape)
-            # Compute the loss and perform a gradient descent step
-            loss = loss_fn(current_q_value, td_target_expanded)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            state = next_state
-
-            if not alive:
-                control.exitGame()
-                break
+    def __init__(self, gamma, epsilon, lr, batch_size, max_mem=10000, eps_end=0.01, eps_dec=5e-4):
+        self.epsilon = epsilon # randomness
+        self.eps_min = eps_end
+        self.eps_dec = eps_dec
+        self.gamma = gamma # discount rate
+        self.mem_size = max_mem #deque(maxlen=MAX_MEMORY)
+        self.threshold = 0.05
+        self.mem_ctr = 0
+        self.lr = lr
+        self.action_space = [0,0,0,0,0,0]
+        self.batch_size = batch_size
         
+        self.Q_eval = net.ConvNet(self.lr)
+
+        self.state_memory = np.zeros((self.mem_size, 1, 516, 918), dtype=np.float32)
+        self.new_state_memory = np.zeros((self.mem_size, 1, 516, 918), dtype=np.float32)
+
+        self.action_memory = np.zeros((self.mem_size, 1, 6), dtype=np.int32)
+        self.reward_memory = np.zeros(self.mem_size, dtype=np.float32)
+        self.terminal_memory = np.zeros(self.mem_size, dtype=bool)
+
+
+        
+    def store_transition(self, state, action, reward, state_, done) :
+        index = self.mem_ctr % self.mem_size
+        self.state_memory[index] = state
+        #print(f"state_mem in transition {self.state_memory[index].shape}")
+        self.new_state_memory[index] = state_
+        self.reward_memory[index] = reward
+        self.action_memory[index] = action
+        self.terminal_memory[index] = done
+
+        self.mem_ctr += 1
     
-    # Save the entire model
-    torch.save(cnn_model, 'trained_model.pth')
+    def choose_action(self, observation):
+        if  np.random.random() > self.epsilon:
+            state = torch.tensor(np.array(observation, dtype=np.float32)).to(self.Q_eval.device)
+            #print(f"unsqueezed state: {state.dtype}")
+            actions = self.Q_eval.forward(state)
+            print(actions)
+            actions = (actions > self.threshold).int().tolist()
+            print(f"Chosen Actions: {actions}")
+        else:
+            actions = [[random.randint(0,1) for x in range(0,6)]]
+            print(f"Random Actions: {actions}")
+        return actions
+    
 
-    # OR save only the model parameters (state_dict)
-    torch.save(cnn_model.state_dict(), 'trained_model_state_dict.pth')
+    def learn(self):
+        if self.mem_ctr < self.batch_size:
+            return
+        
+        self.Q_eval.optimizer.zero_grad()
+
+        max_mem = min(self.mem_ctr, self.mem_size)
+        batch = np.random.choice(max_mem, self.batch_size, replace=False)
+
+        batch_index = np.arange(self.batch_size, dtype=np.int32)
+
+        #print(f"state_memory: {self.state_memory.shape}")
+        #print(f"state_memory[batch] {self.state_memory[batch].dtype}")
+       # print(f"batch num: {batch}")
+       # print(f"state_memory_batch: {self.state_memory[batch].shape}")
+
+        state_batch = torch.tensor(self.state_memory[batch]).to(self.Q_eval.device)
+        new_state_batch = torch.tensor(self.new_state_memory[batch]).to(self.Q_eval.device)
+        reward_batch = torch.tensor(self.reward_memory[batch]).to(self.Q_eval.device)
+        terminal_batch = torch.tensor(self.terminal_memory[batch]).to(self.Q_eval.device)
+
+        action_batch = self.action_memory[batch]
+
+        #print(f"state_batch: {state_batch.shape}")
+        #print(f"state_batch_indexed {state_batch[batch_index, action_batch]}")
+
+        q_eval = self.Q_eval.forward(state_batch)
+       # print(q_eval)
+        #print(q_eval.shape)
+        q_eval = torch.sum(q_eval, dim=1)
+        q_next = self.Q_eval.forward(new_state_batch)
+        q_next[terminal_batch] = 0.0
+
+        #print(q_next)
+        #print(q_next.shape)
+        #print(reward_batch)
+        #print(reward_batch.shape)
+
+        #print(torch.max(q_next, dim=1)[0])
+
+        q_target = reward_batch + self.gamma * torch.sum(q_next, dim=1)
+
+       # print(q_target.shape)
+        ##print(q_target)
+        #print(q_eval)
+        #print(q_eval.squeeze().shape)
+
+        loss = self.Q_eval.loss(q_target, q_eval).to(self.Q_eval.device)
+        loss.backward()
+        self.Q_eval.optimizer.step()
+
+        self.epsilon = self.epsilon - self.eps_dec if self.epsilon > self.eps_min else self.eps_min
+        
+def train():
+        plot_scores = []
+        plot_mean_scores = []
+        total_score = 0
+        record = 0
+        agent = Agent(gamma=0.99, epsilon=1.0, batch_size=16, eps_end=0.01, lr=0.003)
+        im_controller = imageController.ImageController()
+        control = controller.Controller()
+        ahk = control.getAHK()
+        win = control.getWIN()
+        env = environment.Environment(im_controller)
+        #state = env.reset(control)
+
+        n_games = 500
+        
+        for i in range(n_games):
+
+            state = env.reset(control)
+            alive = True
+            total_reward = 0
+            exit_type = 0
+
+            while alive:
+
+                #print(f"start state {state.shape}")
+                #print(f"start state unsqueezed: {state.unsqueeze(0).shape}")
+
+                actions = agent.choose_action(state)
+            
+                #print(f"Actions {actions}")
+
+                state_, reward, alive, exit_type = env.step(actions, ahk)
+                total_reward += reward
+                agent.store_transition(state, actions, reward, state_, alive)
+                agent.learn()
+                state = state_
+
+                
+                print(f"Is alive: {alive}\n")
+                
+            n_games-=1
+            print(f"Game Num {i}:\n    Teams: {env.teams}\n    Cubes: {env.cubes}\n ")
+            if exit_type == 1:
+                control.exitGameWin()
+            else:
+                control.exitGameLose()
+
+            time.sleep(5)
+                    #agent.train_long_memory()
+            #state = env.reset(control)
+                
+                    # Save the entire model
+            if n_games % 10 == 0:
+                torch.save(agent.model, './trained_model.pth')   
 
 
-train()
+if __name__ == '__main__':
+    train()

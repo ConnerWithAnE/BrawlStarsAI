@@ -26,8 +26,13 @@ class Controller():
                 sleep(0.1)
         sleep(7)
 
-    def exitGame(self):
-        for _, value in self.config["start_match"].items():
+    def exitGameLose(self):
+        for _, value in self.config["exit_match_showdown"].items():
+                self.ahk.click(value["x"], value["y"])
+                sleep(0.1)
+
+    def exitGameWin(self):
+        for _, value in self.config["exit_match_win_showdown"].items():
                 self.ahk.click(value["x"], value["y"])
                 sleep(0.1)
 
