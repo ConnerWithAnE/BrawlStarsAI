@@ -79,13 +79,16 @@ class Environment():
             if n_teams < self.teams:
                 reward += 0.2
             self.teams = n_teams
+            '''
             if self.teams <= 2:
+                exit_type = 1
                 if self.img_controller.winScreen():
                     exit_type = 1
                     reward+=15
                     self.alive = False
+            '''
         if n_teams == None:
-            if self.img_controller.winScreen():
+            if self.img_controller.winScreen() or self.teams == 1:
                     exit_type = 1
                     reward+=15
                     self.alive = False

@@ -18,7 +18,7 @@ class ImageController():
         self.higher_hsv_cubes = np.array([64,255,255])
         self.lower_hsv_final = np.array([100, 50, 50])
         self.higher_hsv_final = np.array([130, 255, 255])
-        self.win_hsv = None
+        self.hsv_img = None
 
     def teamsRemaining(self, teams_arr):
         teams = pytesseract.image_to_string(teams_arr)
@@ -29,10 +29,10 @@ class ImageController():
         return None
     
     def winScreen(self):
-        hsv_img = cv2.cvtColor(np.array(self.win_hsv), cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(hsv_img, self.lower_hsv_final, self.higher_hsv_final)
-        percentage_in_range = (np.count_nonzero(mask) / (hsv_img.shape[0] * hsv_img.shape[1])) * 100
-        if percentage_in_range >= 75.0:
+        mask = cv2.inRange(self.hsv_img, self.lower_hsv_final, self.higher_hsv_final)
+        percentage_in_range = (np.count_nonzero(mask) / (self.hsv_img.shape[0] * self.hsv_img.shape[1])) * 100
+        print(percentage_in_range)
+        if percentage_in_range >= 65.0:
             return True
 
     
@@ -46,7 +46,7 @@ class ImageController():
             
     def isAlive(self):
         new_avg = sum(self.lum_arr) / len(self.lum_arr)
-        if new_avg+10 < self.avg:
+        if new_avg+8 < self.avg:
             if len(self.lum_arr) >= 50:
                 self.lum_arr.clear()
             self.avg = 0
@@ -89,7 +89,7 @@ class ImageController():
 
 
         # Getting the screen area, filtered, showing the number of power cubes held
-        self.win_hsv = cv2.cvtColor(np.array(screenshot_img), cv2.COLOR_BGR2HSV)
+        self.hsv_img = cv2.cvtColor(np.array(screenshot_img), cv2.COLOR_BGR2HSV)
         power_cube_location = np.array(screenshot_img)[155:185, 450:490]
         power_cubes = cv2.cvtColor(power_cube_location, cv2.COLOR_RGB2HSV)
         power_cubes_mask = cv2.inRange(power_cubes, self.lower_hsv_cubes, self.higher_hsv_cubes)

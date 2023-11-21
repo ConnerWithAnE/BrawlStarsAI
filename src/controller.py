@@ -36,6 +36,11 @@ class Controller():
                 self.ahk.click(value["x"], value["y"])
                 sleep(0.1)
 
+    def restartGame(self):
+         for _, value in self.config["restart_game"].items():
+                self.ahk.click(value["x"], value["y"])
+                sleep(0.1)
+
     def getAHK(self):
         return self.ahk
     

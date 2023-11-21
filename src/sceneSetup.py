@@ -58,7 +58,7 @@ def setExitClicks(config, ahk_obj, mode, steps_num):
             print(pos)
         sleep(0.1)
     print(exit_clicks)
-    config[f"exit_match_win_{mode}"] = exit_clicks
+    config[f"restart_game"] = exit_clicks
 
 if __name__ == '__main__':
     

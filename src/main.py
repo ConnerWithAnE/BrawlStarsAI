@@ -10,6 +10,11 @@ import datetime
 import sys
 from collections import deque
 import random
+import matplotlib.pyplot as plt
+import subprocess
+import shutil
+import os
+import joblib
 
 import controller
 import environment
@@ -18,7 +23,7 @@ import net
 
 class Agent:
 
-    def __init__(self, gamma, epsilon, lr, batch_size, max_mem=10000, eps_end=0.01, eps_dec=5e-4):
+    def __init__(self, gamma, epsilon, lr, batch_size, max_mem=1000, eps_end=0.01, eps_dec=5e-4):
         self.epsilon = epsilon # randomness
         self.eps_min = eps_end
         self.eps_dec = eps_dec
@@ -29,8 +34,13 @@ class Agent:
         self.lr = lr
         self.action_space = [0,0,0,0,0,0]
         self.batch_size = batch_size
+        self.num_rand = 0
+        self.num_chose = 0
+        self.game = 0
         
         self.Q_eval = net.ConvNet(self.lr)
+        self.optimizer = optim.Adam(self.Q_eval.parameters(), lr=lr)
+        self.loss = nn.MSELoss()
 
         self.state_memory = np.zeros((self.mem_size, 1, 516, 918), dtype=np.float32)
         self.new_state_memory = np.zeros((self.mem_size, 1, 516, 918), dtype=np.float32)
@@ -60,9 +70,11 @@ class Agent:
             print(actions)
             actions = (actions > self.threshold).int().tolist()
             print(f"Chosen Actions: {actions}")
+            self.num_chose += 1
         else:
             actions = [[random.randint(0,1) for x in range(0,6)]]
             print(f"Random Actions: {actions}")
+            self.num_rand += 1
         return actions
     
 
@@ -70,7 +82,7 @@ class Agent:
         if self.mem_ctr < self.batch_size:
             return
         
-        self.Q_eval.optimizer.zero_grad()
+        self.optimizer.zero_grad()
 
         max_mem = min(self.mem_ctr, self.mem_size)
         batch = np.random.choice(max_mem, self.batch_size, replace=False)
@@ -113,18 +125,33 @@ class Agent:
         #print(q_eval)
         #print(q_eval.squeeze().shape)
 
-        loss = self.Q_eval.loss(q_target, q_eval).to(self.Q_eval.device)
+        loss = self.loss(q_target, q_eval).to(self.Q_eval.device)
         loss.backward()
-        self.Q_eval.optimizer.step()
+        self.optimizer.step()
 
         self.epsilon = self.epsilon - self.eps_dec if self.epsilon > self.eps_min else self.eps_min
-        
+
+          
+
+
 def train():
-        plot_scores = []
-        plot_mean_scores = []
+        plot_cubes = []
+        plot_eps_history = []
+        plot_reward_history = []
+        plot_teams_remaining = []
+
+        #fig = plt.figure()
+
+        n_games = 500
+
         total_score = 0
         record = 0
         agent = Agent(gamma=0.99, epsilon=1.0, batch_size=16, eps_end=0.01, lr=0.003)
+        
+        if os.path.exists("./saves/models/trained_model_1_games.pth"):
+            print('hit')
+            agent = joblib.load("./saves/models/trained_model_1_games.pth")
+           
         im_controller = imageController.ImageController()
         control = controller.Controller()
         ahk = control.getAHK()
@@ -132,16 +159,29 @@ def train():
         env = environment.Environment(im_controller)
         #state = env.reset(control)
 
-        n_games = 500
-        
-        for i in range(n_games):
+       
+    
+        print(agent.epsilon)
 
+        while agent.game < n_games:
+            
+            checkRunning(control)
             state = env.reset(control)
             alive = True
             total_reward = 0
             exit_type = 0
+            agent.num_rand = 0
+            agent.num_chose = 0
+            ahk.key_up('w')
+            ahk.key_up('a')
+            ahk.key_up('s')
+            ahk.key_up('d')
+            win.activate()
 
             while alive:
+
+                if ahk.key_state('h') == 1:
+                    alive = False
 
                 #print(f"start state {state.shape}")
                 #print(f"start state unsqueezed: {state.unsqueeze(0).shape}")
@@ -156,23 +196,53 @@ def train():
                 agent.learn()
                 state = state_
 
+                if checkRunning(control) == False:
+                    alive = False
+                    exit_type = 2
                 
                 print(f"Is alive: {alive}\n")
                 
-            n_games-=1
-            print(f"Game Num {i}:\n    Teams: {env.teams}\n    Cubes: {env.cubes}\n ")
-            if exit_type == 1:
+            print(f"Game Num {agent.game+1}:\n   Teams: {env.teams}\n   Cubes: {env.cubes}\n   Random Moves: {agent.num_rand}\n   Chosen Moves: {agent.num_chose}\n   Epsilon: {agent.epsilon}")
+            plot_cubes.append(env.cubes)
+            plot_eps_history.append(agent.epsilon)
+            plot_teams_remaining.append(env.teams)
+            plot_reward_history.append(total_reward)
+            time.sleep(1)
+            if exit_type == 1 or im_controller.winScreen():
+                time.sleep(1)
                 control.exitGameWin()
-            else:
+            elif exit_type == 0:
                 control.exitGameLose()
-
+            checkRunning(control)
             time.sleep(5)
                     #agent.train_long_memory()
             #state = env.reset(control)
                 
                     # Save the entire model
-            if n_games % 10 == 0:
-                torch.save(agent.model, './trained_model.pth')   
+            if agent.game % 2 == 0:
+                
+                joblib.dump(agent, f"./saves/models/trained_model_{agent.game+1}_games.pth")
+                print("Save Complete")
+                x = [j for j in range(agent.game+1)]
+                plt.figure()
+                #plt.plot(x, plot_eps_history, label="Epsilon")
+                plt.xlabel("Epsilon")
+                plt.plot(plot_eps_history, plot_reward_history, label="Rewards")
+                plt.plot(plot_eps_history, plot_cubes, label="Power Cubes")
+                plt.plot(plot_eps_history, plot_teams_remaining, label="Teams Remaining")
+                plt.legend()
+                plt.savefig(f"./saves/plots/training_plot_{agent.game+1}_games.png")
+            agent.game += 1
+
+
+def checkRunning(control):
+    running = subprocess.run(['C:\\Users\\conne\\Desktop\\BrawlStarsAI\\src\\platform-tools\\adb.exe', 'shell', 'pidof', 'com.supercell.brawlstars'],check=True, capture_output=True, text=True)
+    if running == None:
+        print("Restarting Game")
+        control.restartGame()
+        time.sleep(5)
+        return False
+    return True
 
 
 if __name__ == '__main__':

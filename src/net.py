@@ -24,11 +24,10 @@ class ConvNet(nn.Module):
         self.relu = nn.ReLU()  # Adjust the input size based on your image size
         self.fc2 = nn.Linear(120, 60)
         self.fc3 = nn.Linear(60, 6)
-        self.flat = nn.Flatten()
 
         self.n_actions = 6
-        self.loss = nn.MSELoss()
-        self.optimizer = optim.Adam(self.parameters(), lr=lr)
+        #self.loss = nn.MSELoss()
+        #self.optimizer = optim.Adam(self.parameters(), lr=lr)
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.to(self.device)
     
@@ -60,10 +59,10 @@ class ConvNet(nn.Module):
         #out = self.conv3(out)
         #out = self.pool2(out)
         #out = self.conv4(out)
-        print(f"conv shape {out.shape}")
+        #print(f"conv shape {out.shape}")
         out = out.view(-1, 16*21*47)
 
-        print(f"conv flat shape {out.shape}")
+        #print(f"conv flat shape {out.shape}")
 
         out = self.fc1(out)
         out = self.relu(out)
